@@ -8,7 +8,7 @@ const { link } = require('fs/promises');
 const API_ID = 25171031;
 const API_HASH = "10f7696a65a7217fad43302ea6ba1695";
 const BOT_TOKEN = "6367374872:AAHdjQNVzrC-WyVp-_4sQDDU8PQ7mpvkoA8";
-const ownerSession = new StringSession("1AgAOMTQ5LjE1NC4xNjcuNDEBu6diX80UbU8xXI719W5swc+XSuuAh8C+s4Bau1aqaCgssJIfDHnZNk4UKTDjhKp0JXr69Sgu5uqyApsemv3995rHVgU6KWOj12QgXwtgGUa5iX+Jq0LSekFh6goN+F67BNs4zEaQmgZbcqnunLtiEQCcmTzTQT50MrgkUhJ3B0ZPEUZ+8mbHtdAt8sAFR+KKOkBqLtBsuHO1nWz6Y2JhSz39WUvmYR+8jxjQjsF80rbhVLDtvgPALjU2FTbFHCS+UMnA9Kw/dYgMlnb1wyj4pcvHGsdwJ5Fz3u8eOLvpsemW+yDEpyn6lKQ1kXmnGwak9CIWaweQ7v5f59bewMgAwLI=");
+// const ownerSession = new StringSession("1AgAOMTQ5LjE1NC4xNjcuNDEBu6diX80UbU8xXI719W5swc+XSuuAh8C+s4Bau1aqaCgssJIfDHnZNk4UKTDjhKp0JXr69Sgu5uqyApsemv3995rHVgU6KWOj12QgXwtgGUa5iX+Jq0LSekFh6goN+F67BNs4zEaQmgZbcqnunLtiEQCcmTzTQT50MrgkUhJ3B0ZPEUZ+8mbHtdAt8sAFR+KKOkBqLtBsuHO1nWz6Y2JhSz39WUvmYR+8jxjQjsF80rbhVLDtvgPALjU2FTbFHCS+UMnA9Kw/dYgMlnb1wyj4pcvHGsdwJ5Fz3u8eOLvpsemW+yDEpyn6lKQ1kXmnGwak9CIWaweQ7v5f59bewMgAwLI=");
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -109,29 +109,13 @@ const addSession = async (chatId) => {
 };
 
 
-const sendMessagesInBatches = async (client, chatId) => {
+const sendMessagesInBatches = async (chatId) => {
     let usernames = [];
     let batchSize = null;
     let waitTime = null;
     let messageText = null;
     let currentStepMessage;
-
-    fs.readFile('Accounts.json', 'utf8', (err, data) => {
-        if (err) {
-          console.error('Ошибка чтения файла:', err);
-          return;
-        }
-        
-        try {
-          const accounts = JSON.parse(data);
-
-          console.log(accounts);
-          
-        } catch (err) {
-          console.error('Ошибка парсинга JSON:', err);
-        }
-      });
-
+    let ownerSession = null;
 
     // Функция для редактирования сообщения с текущим состоянием
     const updateMessage = async (text) => {
@@ -144,129 +128,174 @@ const sendMessagesInBatches = async (client, chatId) => {
             currentStepMessage = await bot.sendMessage(chatId, text);
         }
     };
-    
 
-    // Шаг 1: Загрузка файла с именами пользователей
-    await bot.sendMessage(chatId, "Пожалуйста, загрузите файл .txt с именами пользователей (каждый пользователь на новой строке):");
+    // Загрузка сессий из файла
+    fs.readFile('Accounts.json', 'utf8', async (err, data) => {
+        if (err) {
+            console.error('Ошибка чтения файла:', err);
+            return;
+        }
+        
+        try {
+            const fileSessions = await JSON.parse(data);
+            const sessions = fileSessions.sessions;
+            console.log(sessions);
 
-    return new Promise((resolve) => {
-        const documentHandler = async (msg) => {
-            if (msg.document) {
-                const fileId = msg.document.file_id;
-                const filePath = await bot.downloadFile(fileId, './'); // Скачиваем файл
-
-                try {
-                    const fileData = fs.readFileSync(filePath, 'utf-8');
-                    usernames = fileData.split('\n').map(line => line.trim()).filter(line => line.length > 0); // Чтение и разбор файла
-                    await updateMessage(`Файл загружен. Найдено пользователей: ${usernames.length}\nПереход к следующему шагу.`);
-                    bot.removeListener('message', documentHandler);
-                    step2(); // Переход к следующему шагу
-                } catch (error) {
-                    console.error('Ошибка при чтении файла:', error);
-                    await updateMessage("Ошибка при чтении файла. Попробуйте снова загрузить файл.");
+            // Отправка сообщения с выбором сессий после успешного чтения файла
+            await bot.sendMessage(chatId, 'Выберите сессию:', {
+                reply_markup: {
+                    inline_keyboard: sessions.map(session => [
+                        {
+                            text: session.name,  // Отображаемое имя на кнопке
+                            callback_data: session.session // Данные, которые будут отправлены при нажатии на кнопку
+                        }
+                    ])
                 }
+            });
+        } catch (err) {
+            console.error('Ошибка парсинга JSON:', err);
+        }
+    });
+
+    // Обработчик для получения выбранной сессии
+    bot.on('callback_query', async (callbackQuery) => {
+        const sessionId = callbackQuery.data; // Извлекаем данные сессии из callback_data
+        console.log(sessionId);
+        ownerSession = new StringSession(sessionId); // Сохраняем выбранную сессию в переменную ownerSession
+
+        await bot.answerCallbackQuery(callbackQuery.id); // Ответить на нажатие кнопки
+        await bot.sendMessage(chatId, `Вы выбрали сессию: ${ownerSession}`);
+
+        // После выбора сессии продолжаем с шагами
+        step1(); // Начинаем с первого шага
+    });
+
+    const step1 = async () => {
+        // Шаг 1: Загрузка файла с именами пользователей
+        await bot.sendMessage(chatId, "Пожалуйста, загрузите файл .txt с именами пользователей (каждый пользователь на новой строке):");
+
+        return new Promise((resolve) => {
+            const documentHandler = async (msg) => {
+                if (msg.document) {
+                    const fileId = msg.document.file_id;
+                    const filePath = await bot.downloadFile(fileId, './'); // Скачиваем файл
+
+                    try {
+                        const fileData = fs.readFileSync(filePath, 'utf-8');
+                        usernames = fileData.split('\n').map(line => line.trim()).filter(line => line.length > 0); // Чтение и разбор файла
+                        await updateMessage(`Файл загружен. Найдено пользователей: ${usernames.length}\nПереход к следующему шагу.`);
+                        bot.removeListener('message', documentHandler);
+                        step2(); // Переход к следующему шагу
+                    } catch (error) {
+                        console.error('Ошибка при чтении файла:', error);
+                        await updateMessage("Ошибка при чтении файла. Попробуйте снова загрузить файл.");
+                    }
+                } else {
+                    await updateMessage("Пожалуйста, загрузите файл в формате .txt.");
+                }
+            };
+
+            bot.on('message', documentHandler);
+        });
+    };
+
+    const step2 = async () => {
+        // Шаг 2: Ввод размера партии
+        await bot.sendMessage(chatId, "Введите размер партии");
+
+        const batchSizeHandler = async (msg) => {
+            const size = parseInt(msg.text, 10);
+
+            if (!isNaN(size)) {
+                batchSize = size;
+                bot.removeListener('message', batchSizeHandler);
+                step3(); // Переход к следующему шагу
             } else {
-                await updateMessage("Пожалуйста, загрузите файл в формате .txt.");
+                await updateMessage("Пожалуйста, введите корректное число для размера партии:");
             }
         };
 
-        bot.on('message', documentHandler);
+        bot.on('message', batchSizeHandler);
+    };
 
-        const step2 = async () => {
-            // Шаг 2: Ввод размера партии
-            await bot.sendMessage(chatId, "Введите размер партии");
+    const step3 = async () => {
+        // Шаг 3: Ввод времени задержки
+        await bot.sendMessage(chatId, "Введите время задержки между партиями (в миллисекундах):");
 
-            const batchSizeHandler = async (msg) => {
-                const size = parseInt(msg.text, 10);
+        const waitTimeHandler = async (msg) => {
+            const time = parseInt(msg.text, 10);
 
-                if (!isNaN(size)) {
-                    batchSize = size;
-                    bot.removeListener('message', batchSizeHandler);
-                    step3(); // Переход к следующему шагу
-                } else {
-                    await updateMessage("Пожалуйста, введите корректное число для размера партии:");
-                }
-            };
-
-            bot.on('message', batchSizeHandler);
+            if (!isNaN(time)) {
+                waitTime = time;
+                bot.removeListener('message', waitTimeHandler);
+                step4(); // Переход к следующему шагу
+            } else {
+                await updateMessage("Пожалуйста, введите корректное число для времени задержки:");
+            }
         };
 
-        const step3 = async () => {
-            // Шаг 3: Ввод времени задержки
-            await bot.sendMessage(chatId, "Введите время задержки между партиями (в миллисекундах):");
+        bot.on('message', waitTimeHandler);
+    };
 
-            const waitTimeHandler = async (msg) => {
-                const time = parseInt(msg.text, 10);
+    const step4 = async () => {
+        // Шаг 4: Ввод сообщения для отправки
+        await bot.sendMessage(chatId, "Введите сообщение для рассылки:");
 
-                if (!isNaN(time)) {
-                    waitTime = time;
-                    bot.removeListener('message', waitTimeHandler);
-                    step4(); // Переход к следующему шагу
-                } else {
-                    await updateMessage("Пожалуйста, введите корректное число для времени задержки:");
-                }
-            };
+        const messageHandler = async (msg) => {
+            messageText = msg.text;
 
-            bot.on('message', waitTimeHandler);
+            if (messageText) {
+                bot.removeListener('message', messageHandler);
+                sendMessages(); // Переход к отправке сообщений
+            } else {
+                await updateMessage("Пожалуйста, введите сообщение:");
+            }
         };
 
-        const step4 = async () => {
-            // Шаг 4: Ввод сообщения для отправки
-            await bot.sendMessage(chatId, "Введите сообщение для рассылки:");
+        bot.on('message', messageHandler);
+    };
 
-            const messageHandler = async (msg) => {
-                messageText = msg.text;
+    const sendMessages = async () => {
+        const client = new TelegramClient(ownerSession, API_ID, API_HASH);
+        await client.start();    
+        // Шаг 5: Отправка сообщений с использованием выбранной сессии
+        await bot.sendMessage(chatId, `Отправка сообщений через сессию: ${ownerSession}\nПользователи: ${usernames.join(', ')}\nРазмер партии: ${batchSize}\nЗадержка: ${waitTime} мс\nСообщение: ${messageText}`);
 
-                if (messageText) {
-                    bot.removeListener('message', messageHandler);
-                    sendMessages(); // Переход к отправке сообщений
-                } else {
-                    await updateMessage("Пожалуйста, введите сообщение:");
-                }
-            };
-
-            bot.on('message', messageHandler);
-        };
-
-        const sendMessages = async () => {
-            // Шаг 5: Отправка сообщений
-            await bot.sendMessage(chatId,`Отправка сообщений...\nПользователи: ${usernames.join(', ')}\nРазмер партии: ${batchSize}\nЗадержка: ${waitTime} мс\nСообщение: ${messageText}`);
-
-            for (let i = 0; i < usernames.length; i += batchSize) {
-                const batch = usernames.slice(i, i + batchSize);
-                for (const username of batch) {
-                    try {
-                        const entity = await client.getEntity(username);
-                        await sleep(1000); // Пауза между сообщениями
-                        await client.invoke(
-                            new Api.messages.SendMessage({
-                                peer: entity,
-                                message: messageText,
-                                randomId: BigInt(-Math.floor(Math.random() * 1e12)),
-                                noWebpage: true,
-                                noforwards: true,
-                            })
-                        );
-                        console.log(`Сообщение отправлено: ${username}`);
-                    } catch (error) {
-                        if (error.errorMessage === 'FLOOD') {
-                            console.error(`Не удалось отправить сообщение ${username}: Включен режим медленной отправки. Подождите ${error.seconds} секунд.`);
-                        } else {
-                            console.error(`Не удалось отправить сообщение ${username}:`, error);
-                        }
+        for (let i = 0; i < usernames.length; i += batchSize) {
+            const batch = usernames.slice(i, i + batchSize);
+            for (const username of batch) {
+                try {
+                    const entity = await client.getEntity(username);
+                    await sleep(1000); // Пауза между сообщениями
+                    await client.invoke(
+                        new Api.messages.SendMessage({
+                            peer: entity,
+                            message: messageText,
+                            randomId: BigInt(-Math.floor(Math.random() * 1e12)),
+                            noWebpage: true,
+                            noforwards: true,
+                        })
+                    );
+                    console.log(`Сообщение отправлено: ${username}`);
+                } catch (error) {
+                    if (error.errorMessage === 'FLOOD') {
+                        console.error(`Не удалось отправить сообщение ${username}: Включен режим медленной отправки. Подождите ${error.seconds} секунд.`);
+                    } else {
+                        console.error(`Не удалось отправить сообщение ${username}:`, error);
                     }
                 }
-                if (i + batchSize < usernames.length) {
-                    console.log(`Ожидание ${waitTime / 1000} секунд перед следующей партией...`);
-                    await sleep(waitTime);
-                }
             }
+            if (i + batchSize < usernames.length) {
+                console.log(`Ожидание ${waitTime / 1000} секунд перед следующей партией...`);
+                await sleep(waitTime);
+            }
+        }
 
-            await updateMessage("Все сообщения были отправлены.");
-            resolve(); // Завершение процесса
-        };
-    });
+        await updateMessage("Все сообщения были отправлены.");
+    };
 };
+
+
 
 
 bot.on('callback_query', async (callbackQuery) => {
@@ -284,12 +313,8 @@ bot.on('callback_query', async (callbackQuery) => {
         // Запуск процесса отправки сообщений
         bot.sendMessage(chatId, 'Начинаем процесс отправки сообщений. Пожалуйста, следуйте инструкциям.');
         
-        // Создаем клиент Telegram и запускаем его
-        const client = new TelegramClient(ownerSession, API_ID, API_HASH);
-        await client.start();
-
         // Запускаем процесс отправки сообщений
-        await sendMessagesInBatches(client, chatId);
+        await sendMessagesInBatches(chatId);
 
         // Сообщение по завершению процесса отправки
         bot.sendMessage(chatId, 'Процесс отправки сообщений завершен.');
