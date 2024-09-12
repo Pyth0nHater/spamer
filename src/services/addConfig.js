@@ -2,10 +2,11 @@ const fs = require('fs');
 const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const Config = require('../models/Config'); 
 const Account = require('../models/Account'); 
 
 
-const sendMessagesInBatches = async (bot, chatId, API_ID, API_HASH) => {
+const addConfig = async (bot, chatId) => {
     let usernames = [];
     let batchSize = null;
     let waitTime = null;
@@ -13,6 +14,7 @@ const sendMessagesInBatches = async (bot, chatId, API_ID, API_HASH) => {
     let currentStepMessage;
     let ownerSession = null;
     let accountName = null;
+    let configName = null;
     let time;
 
     const updateMessage = async (text) => {
@@ -134,7 +136,7 @@ const sendMessagesInBatches = async (bot, chatId, API_ID, API_HASH) => {
 
             if (messageText) {
                 bot.removeListener('message', messageHandler);
-                sendMessages();
+                step5();
             } else {
                 await updateMessage("Пожалуйста, введите сообщение:");
             }
@@ -143,12 +145,42 @@ const sendMessagesInBatches = async (bot, chatId, API_ID, API_HASH) => {
         bot.on('message', messageHandler);
     };
 
+    const step5 = async () => {
+        await bot.sendMessage(chatId, "Введите название конфига");
 
+        const messageHandler = async (msg) => {
+            configName = msg.text;
 
+            if (messageText) {
+                await bot.removeListener('message', messageHandler);
+                try {
+                    await Config.create({
+                        chatId: chatId,
+                        configName: configName,
+                        configSession: ownerSession,
+                        sessionName: accountName,
+                        chats: usernames,
+                        message: messageText,
+                        delay: waitTime,
+                        bathSize: batchSize,
+                        session: ownerSession
+                    });
+                    bot.sendMessage(chatId, 'Новый конфиг добавлен.');
+                } catch (error) {
+                    console.error('Ошибка при записи в MongoDB:', error);
+                    bot.sendMessage(chatId, 'Произошла ошибка при сохранении сессии.');
+                }
+            } else {
+                await updateMessage("Пожалуйста, введите сообщение:");
+            }
+        };
+
+        await bot.on('message', messageHandler);
+    };
 
 
     // Запуск процесса с первого шага (выбора сессии)
     await step0();
 };
 
-module.exports = { sendMessagesInBatches };
+module.exports = { addConfig };
