@@ -7,7 +7,7 @@ const { addConfig } = require('./src/services/addConfig');
 const { sendMessagesInBatches } = require('./src/services/sendMessages');
 require('dotenv').config();
 
-const API_ID = process.env.API_ID
+const API_ID = Number(process.env.API_ID)
 const API_HASH = process.env.API_HASH
 const BOT_TOKEN = process.env.BOT_TOKEN
 
