@@ -1,11 +1,10 @@
 // addSession.js
 const { TelegramClient, Logger } = require("telegram");
 const { StringSession } = require("telegram/sessions");
-const API_ID = 25171031;
-const API_HASH = "10f7696a65a7217fad43302ea6ba1695";
 const Account = require('../models/Account'); 
+require('dotenv').config();
 
-const addSession = async (bot, chatId, db) => {
+const addSession = async (API_ID, API_HASH, bot, chatId) => {
     bot.sendMessage(chatId, "Запуск процесса добавления новой учетной записи...");
 
     const client = new TelegramClient(new StringSession(''), API_ID, API_HASH, {

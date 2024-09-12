@@ -5,10 +5,11 @@ const Config = require('./src/models/Config');
 const { addSession } = require('./src/services/addSession');
 const { addConfig } = require('./src/services/addConfig');
 const { sendMessagesInBatches } = require('./src/services/sendMessages');
+require('dotenv').config();
 
-const API_ID = 25171031;
-const API_HASH = "10f7696a65a7217fad43302ea6ba1695";
-const BOT_TOKEN = "6367374872:AAHdjQNVzrC-WyVp-_4sQDDU8PQ7mpvkoA8";
+const API_ID = process.env.API_ID
+const API_HASH = process.env.API_HASH
+const BOT_TOKEN = process.env.BOT_TOKEN
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
@@ -36,7 +37,7 @@ mongoose.connect('mongodb://localhost:27017/telegram_bot').then(() => {
         const data = callbackQuery.data;
 
         if (data === 'AddAccount') {
-            await addSession(bot, chatId, mongoose);
+            await addSession(API_ID, API_HASH, bot, chatId);
         }
         else if (data === 'addConfig'){
             await addConfig(bot, chatId)
