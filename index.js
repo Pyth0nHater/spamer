@@ -5,6 +5,7 @@ const Config = require('./src/models/Config');
 const { addSession } = require('./src/services/addSession');
 const { addConfig } = require('./src/services/addConfig');
 const { sendMessagesInBatches } = require('./src/services/sendMessages');
+const { startConfig } = require('./src/services/startConfig')
 require('dotenv').config();
 
 const API_ID = Number(process.env.API_ID)
@@ -24,8 +25,8 @@ mongoose.connect('mongodb://localhost:27017/telegram_bot').then(() => {
                 inline_keyboard: [
                     [{ text: 'Мои аккаунты', callback_data: 'MyAccounts' }, { text: 'Добавить аккаунт', callback_data: 'AddAccount' }],
                     [{ text: 'Мои конфигурации', callback_data: 'MyConfigs' }, { text: 'Добавить конфигурацию', callback_data: 'addConfig' }],
-                    [{ text: 'Запустить конфигурацию', callback_data: 'SendMessages' }],
-                    [{ text: 'Запустить рассылку', callback_data: 'SendMess' }]
+                    [{ text: 'Запустить конфигурацию', callback_data: 'StartConfig' }],
+                    [{ text: 'Запустить рассылку', callback_data: 'SendMessages' }]
                 ]
             }
         });
@@ -95,11 +96,16 @@ mongoose.connect('mongodb://localhost:27017/telegram_bot').then(() => {
                 console.error('Ошибка при получении аккаунтов:', error);
                 await bot.sendMessage(chatId, 'Произошла ошибка при получении аккаунтов.');
             }
+        }  else if (data === 'StartConfig') {
+            // Запускаем процесс отправки сообщений
+            await startConfig(bot, chatId, API_ID, API_HASH);
+
         }  else if (data === 'SendMessages') {
             // Запускаем процесс отправки сообщений
             await sendMessagesInBatches(bot, chatId, API_ID, API_HASH);
+        }
 
-        } else if (data === 'closeMenu') {
+        else if (data === 'closeMenu') {
             await bot.sendMessage(chatId, 'Меню закрыто.');
         }
     });
